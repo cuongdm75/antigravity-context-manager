@@ -1,0 +1,82 @@
+{
+  "name": "antigravity-context-manager",
+  "displayName": "Antigravity Context Manager",
+  "description": "Manage Knowledge Items, clean up brain storage, track agents/skills for Antigravity IDE",
+  "version": "1.0.0",
+  "publisher": "sms-online",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "antigravity-context",
+          "title": "Context Manager",
+          "icon": "media/brain.svg"
+        }
+      ]
+    },
+    "views": {
+      "antigravity-context": [
+        { "id": "ki-browser", "name": "📚 Knowledge Items" },
+        { "id": "agent-tracker", "name": "🤖 Agents & Skills" },
+        { "id": "conversation-explorer", "name": "💬 Conversations" },
+        { "id": "contextManager.cleanup", "name": "🧹 Smart Cleanup", "type": "webview" }
+      ]
+    },
+    "commands": [
+      { "command": "contextManager.refreshKI", "title": "Refresh Knowledge Items", "icon": "$(refresh)" },
+      { "command": "contextManager.refreshAgents", "title": "Refresh Agents & Skills", "icon": "$(refresh)" },
+      { "command": "contextManager.refreshConversations", "title": "Refresh Conversations", "icon": "$(refresh)" },
+      { "command": "contextManager.openCleanup", "title": "Open Cleanup Dashboard", "icon": "$(trash)" },
+      { "command": "contextManager.cleanBrowserRecordings", "title": "Clean Browser Recordings" },
+      { "command": "contextManager.cleanOldMedia", "title": "Clean Old Brain Media" },
+      { "command": "contextManager.copyKISummary", "title": "Copy KI Summary" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "contextManager.refreshKI", "when": "view == ki-browser", "group": "navigation" },
+        { "command": "contextManager.refreshAgents", "when": "view == agent-tracker", "group": "navigation" },
+        { "command": "contextManager.refreshConversations", "when": "view == conversation-explorer", "group": "navigation" },
+        { "command": "contextManager.openCleanup", "when": "view == ki-browser", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "contextManager.copyKISummary", "when": "viewItem == ki-root" }
+      ]
+    },
+    "configuration": {
+      "title": "Context Manager",
+      "properties": {
+        "contextManager.geminiPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to .gemini/antigravity directory (auto-detected if empty)"
+        },
+        "contextManager.keepRecentSessions": {
+          "type": "number",
+          "default": 10,
+          "description": "Number of recent sessions to keep during cleanup"
+        },
+        "contextManager.staleKIDays": {
+          "type": "number",
+          "default": 7,
+          "description": "Days after which a KI is considered stale"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npx vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
