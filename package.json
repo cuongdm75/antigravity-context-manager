@@ -2,7 +2,7 @@
   "name": "antigravity-context-manager",
   "displayName": "Antigravity Context Manager",
   "description": "Manage Knowledge Items, clean up brain storage, track agents/skills for Antigravity IDE",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "sms-online",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
@@ -23,6 +23,7 @@
         { "id": "ki-browser", "name": "📚 Knowledge Items" },
         { "id": "agent-tracker", "name": "🤖 Agents & Skills" },
         { "id": "conversation-explorer", "name": "💬 Conversations" },
+        { "id": "experience-monitor", "name": "💡 Experience Monitor" },
         { "id": "contextManager.cleanup", "name": "🧹 Smart Cleanup", "type": "webview" }
       ]
     },
@@ -33,17 +34,24 @@
       { "command": "contextManager.openCleanup", "title": "Open Cleanup Dashboard", "icon": "$(trash)" },
       { "command": "contextManager.cleanBrowserRecordings", "title": "Clean Browser Recordings" },
       { "command": "contextManager.cleanOldMedia", "title": "Clean Old Brain Media" },
-      { "command": "contextManager.copyKISummary", "title": "Copy KI Summary" }
+      { "command": "contextManager.copyKISummary", "title": "Copy KI Summary" },
+      { "command": "contextManager.scanExperience", "title": "Scan for Patterns", "icon": "$(search)" },
+      { "command": "contextManager.previewSuggestion", "title": "Preview Suggestion" },
+      { "command": "contextManager.acceptSuggestion", "title": "Accept & Generate", "icon": "$(check)" },
+      { "command": "contextManager.dismissSuggestion", "title": "Dismiss", "icon": "$(close)" }
     ],
     "menus": {
       "view/title": [
         { "command": "contextManager.refreshKI", "when": "view == ki-browser", "group": "navigation" },
         { "command": "contextManager.refreshAgents", "when": "view == agent-tracker", "group": "navigation" },
         { "command": "contextManager.refreshConversations", "when": "view == conversation-explorer", "group": "navigation" },
-        { "command": "contextManager.openCleanup", "when": "view == ki-browser", "group": "navigation" }
+        { "command": "contextManager.openCleanup", "when": "view == ki-browser", "group": "navigation" },
+        { "command": "contextManager.scanExperience", "when": "view == experience-monitor", "group": "navigation" }
       ],
       "view/item/context": [
-        { "command": "contextManager.copyKISummary", "when": "viewItem == ki-root" }
+        { "command": "contextManager.copyKISummary", "when": "viewItem == ki-root" },
+        { "command": "contextManager.acceptSuggestion", "when": "viewItem == suggestion", "group": "inline" },
+        { "command": "contextManager.dismissSuggestion", "when": "viewItem == suggestion", "group": "inline" }
       ]
     },
     "configuration": {
@@ -63,6 +71,11 @@
           "type": "number",
           "default": 7,
           "description": "Days after which a KI is considered stale"
+        },
+        "contextManager.autoScanInterval": {
+          "type": "number",
+          "default": 30,
+          "description": "Minutes between automatic experience scans (0 to disable)"
         }
       }
     }

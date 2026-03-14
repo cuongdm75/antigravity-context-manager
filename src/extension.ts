@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { KnowledgeItemProvider } from './providers/KnowledgeItemProvider';
 import { AgentSkillProvider } from './providers/AgentSkillProvider';
 import { ConversationProvider } from './providers/ConversationProvider';
 import { CleanupWebviewProvider } from './providers/CleanupWebviewProvider';
+import { ExperienceProvider } from './providers/ExperienceProvider';
 import { CleanupService } from './services/CleanupService';
+import { PatternDetector, PatternSuggestion } from './services/PatternDetector';
 
 export function activate(context: vscode.ExtensionContext) {
   const projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
@@ -23,6 +27,12 @@ export function activate(context: vscode.ExtensionContext) {
   // --- Cleanup Dashboard ---
   const cleanupProvider = new CleanupWebviewProvider(context.extensionUri);
   vscode.window.registerWebviewViewProvider(CleanupWebviewProvider.viewType, cleanupProvider);
+
+  // --- Experience Monitor ---
+  const storagePath = context.globalStorageUri.fsPath;
+  const detector = new PatternDetector(storagePath);
+  const expProvider = new ExperienceProvider(detector, projectPath);
+  vscode.window.registerTreeDataProvider('experience-monitor', expProvider);
 
   // --- Commands ---
   const cleanupService = new CleanupService();
@@ -68,6 +78,74 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('📋 KI summary copied to clipboard');
       }
     }),
+
+    // --- Experience Monitor Commands ---
+    vscode.commands.registerCommand('contextManager.scanExperience', () => {
+      expProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand('contextManager.previewSuggestion', async (suggestion: PatternSuggestion) => {
+      if (!suggestion.generatedContent) { return; }
+      const doc = await vscode.workspace.openTextDocument({
+        content: suggestion.generatedContent,
+        language: 'markdown',
+      });
+      await vscode.window.showTextDocument(doc, { preview: true });
+    }),
+
+    vscode.commands.registerCommand('contextManager.acceptSuggestion', async (item: any) => {
+      const suggestion: PatternSuggestion = item?.suggestion;
+      if (!suggestion || !suggestion.generatedContent) { return; }
+
+      const agentDir = path.join(projectPath, '.agent');
+
+      let targetPath: string;
+      let fileName: string;
+
+      if (suggestion.type === 'skill') {
+        const skillName = suggestion.sourceDetail.replace(/\s/g, '-').toLowerCase()
+          || suggestion.title.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+        const skillDir = path.join(agentDir, 'skills', skillName);
+        if (!fs.existsSync(skillDir)) { fs.mkdirSync(skillDir, { recursive: true }); }
+        targetPath = path.join(skillDir, 'SKILL.md');
+        fileName = `skills/${skillName}/SKILL.md`;
+      } else if (suggestion.type === 'agent') {
+        const agentName = suggestion.title.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+        targetPath = path.join(agentDir, 'agents', `${agentName}.md`);
+        fileName = `agents/${agentName}.md`;
+      } else {
+        const wfName = suggestion.title.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+        targetPath = path.join(agentDir, 'workflows', `${wfName}.md`);
+        fileName = `workflows/${wfName}.md`;
+      }
+
+      if (fs.existsSync(targetPath)) {
+        const overwrite = await vscode.window.showWarningMessage(
+          `File ${fileName} already exists. Overwrite?`, { modal: true }, 'Overwrite'
+        );
+        if (overwrite !== 'Overwrite') { return; }
+      }
+
+      const dir = path.dirname(targetPath);
+      if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
+      fs.writeFileSync(targetPath, suggestion.generatedContent);
+
+      detector.dismissSuggestion(suggestion.id);
+      expProvider.refresh();
+      agentProvider.refresh();
+
+      const doc = await vscode.workspace.openTextDocument(targetPath);
+      await vscode.window.showTextDocument(doc);
+      vscode.window.showInformationMessage(`✅ Generated ${suggestion.type}: ${fileName}`);
+    }),
+
+    vscode.commands.registerCommand('contextManager.dismissSuggestion', (item: any) => {
+      if (item?.suggestion?.id) {
+        detector.dismissSuggestion(item.suggestion.id);
+        expProvider.refresh();
+        vscode.window.showInformationMessage('🗑️ Suggestion dismissed');
+      }
+    }),
   );
 
   // --- Status Bar: Session Health ---
@@ -80,7 +158,17 @@ export function activate(context: vscode.ExtensionContext) {
   const timer = setInterval(() => updateStatusBar(statusItem), 60000);
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
 
-  vscode.window.showInformationMessage('🧠 Context Manager activated');
+  // --- Auto-scan experience patterns ---
+  const config = vscode.workspace.getConfiguration('contextManager');
+  const scanInterval = config.get<number>('autoScanInterval', 30);
+  if (scanInterval > 0) {
+    const expTimer = setInterval(() => expProvider.refresh(), scanInterval * 60000);
+    context.subscriptions.push({ dispose: () => clearInterval(expTimer) });
+    // Initial scan after 10 seconds
+    setTimeout(() => expProvider.refresh(), 10000);
+  }
+
+  vscode.window.showInformationMessage('🧠 Context Manager v1.1 activated');
 }
 
 function updateStatusBar(item: vscode.StatusBarItem) {
@@ -88,7 +176,6 @@ function updateStatusBar(item: vscode.StatusBarItem) {
     const { FileScanner } = require('./services/FileScanner');
     const scanner = new FileScanner();
     const usage = scanner.scanDiskUsage();
-    const totalMB = (usage.total / 1048576).toFixed(0);
 
     const icon = usage.total > 1073741824 ? '🔴' : usage.total > 104857600 ? '🟡' : '🟢';
     item.text = `${icon} Context: ${formatSize(usage.total)}`;
